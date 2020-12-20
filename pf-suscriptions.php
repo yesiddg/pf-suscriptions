@@ -1,11 +1,11 @@
 <?php
 /**
- * Plugin Name: Woo Gateway Paguelo Facil
- * Plugin URI: https://github.com/maryiliana/woocommerce-gateway-paguelofacil-demo
+ * Plugin Name: Woo Gateway Paguelo Facil suscriptions
+ * Plugin URI: https://github.com/yesiddg/pf-suscriptions
  * Description: A plugin that add a new WooCommerce payment.
- * Author: MaryIliana
+ * Author: yeligoth
  * Author URI:
- * Version: 4.1.0
+ * Version: 1.0.0
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -40,11 +40,21 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
       public function __construct() {
         $this->id = 'paguelofacil';
         $this->method_title = 'Paguelo Facil';
-        //$this->icon = "https://secure.paguelofacil.com/images/Logo100x25.png";
+        $this->method_description = 'Pasarela de pago de paguelo fácil';
         $this->icon = "https://pfserver.net/img/VisaMC.png";
         $this->has_fields = true;
         $this->order_button_text = __('Pague', 'woocommerce');
-        $this->supports = array('default_credit_card_form');
+        $this->supports = array(
+          'default_credit_card_form',
+          'subscriptions',
+          'products',
+          'subscription_cancellation', 
+          'subscription_suspension', 
+          'subscription_reactivation',
+          'subscription_amount_changes',
+          'subscription_date_changes',
+          'multiple_subscriptions'
+        );
         $this->title = isset($this->settings['title']) ? $this->settings['title'] : null;
         
         // Load the form fields
@@ -389,7 +399,7 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
           $credi_card_expiry = explode('/', $credi_card_expiry);
           $credi_card_year = str_replace(" ", "", $credi_card_expiry[1]);
 
-          if (strlen($credi_card_year)>2) {
+          if (strlen($credi_card_year) > 2) {
             $credi_card_year = substr($credi_card_year,-2);
           }
 
@@ -448,9 +458,9 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
             $result = json_decode($result, true);
             curl_close($ch);
 
-            if($result['Status']=='Approved'){
+            if($result['Status'] == 'Approved') {
               // Payment completed
-              $order->add_order_note( sprintf( __( 'PagueloFacil payment completed, Transaction ID: %3$s', 'woocommerce' ), $result['CODOPER'] ) );
+              $order->add_order_note( sprintf( __( 'PagueloFacil payment completed, Transaction ID: %1$s', 'woocommerce' ), $result['CODOPER'] ) );
               update_post_meta( $order->get_id(), '_paguelofacil_status', $result['Status'] );
               update_post_meta( $order->get_id(), '_transaction_id', $result['CODOPER'] );
               $order->add_order_note(__('PagueloFacil payment completed', 'woocommerce'));
