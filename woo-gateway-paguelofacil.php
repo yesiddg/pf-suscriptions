@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: Woo Gateway Paguelo Facil suscriptions
+ * Plugin Name: Woo Gateway Paguelo Facil
  * Plugin URI: https://github.com/yesiddg/pf-suscriptions
  * Description: A plugin that add a new WooCommerce payment.
  * Author: yeligoth
@@ -21,6 +21,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
 
 /**
  * Check if WooCommerce is active
@@ -46,14 +50,14 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
         $this->order_button_text = __('Pague', 'woocommerce');
         $this->supports = array(
           'default_credit_card_form',
+          'tokenization',
           'subscriptions',
           'products',
           'subscription_cancellation', 
           'subscription_suspension', 
           'subscription_reactivation',
           'subscription_amount_changes',
-          'subscription_date_changes',
-          'multiple_subscriptions'
+          'subscription_date_changes'
         );
         $this->title = isset($this->settings['title']) ? $this->settings['title'] : null;
         
@@ -62,6 +66,7 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
 
         // Load the settings.
         $this->init_settings();
+        
         $this->product = isset($this->settings['product']) ? $this->settings['product']: null;
         $this->testmode = $this->get_option('testmode');
 
@@ -508,6 +513,91 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
     }
 
     /**
+     * Scheduled_subscription_payment function.
+     *
+     * @param $amount_to_charge float The amount to charge.
+     * @param $renewal_order WC_Order A WC_Order object created to record the renewal payment.
+     */
+    function scheduled_subscription_payment( $amount_to_charge, $renewal_order ) {
+      $result = process_subscription_payment( $amount_to_charge, $renewal_order, true, false );
+
+      if ( is_wp_error( $result ) ) {
+        WC_Subscriptions_Manager::process_subscription_payment_failure_on_order( $renewal_order, $product_id );
+      } else {
+        WC_Subscriptions_Manager::process_subscription_payments_on_order( $renewal_order );
+      }
+    }
+
+    /**
+     * Process_subscription_payment function.
+     *
+     * @since 3.0
+     * @since 4.0.4 Add third parameter flag to retry.
+     * @since 4.1.0 Add fourth parameter to log previous errors.
+     * @param float $amount
+     * @param mixed $renewal_order
+     * @param bool $retry Should we retry the process?
+     * @param object $previous_error
+     */
+    function process_subscription_payment( $amount, $renewal_order, $retry = true, $previous_error = false ) {
+      $order_id = $renewal_order->get_id();
+
+      //Ejemplo de REVERSE_CAPTURE
+      /*$urlConfig = "https://secure.paguelofacil.com/rest/processTx/RECURRENT";
+
+      $cclw = '004D3EF3780409D107C59C85664B800FA63FFE09247A7731B8464CCE837F3C2233F973F7308DB9A7069BD460BEC62C6E6054DD1F2DDF7F22067F857FB9E031AA ';
+      $amount=3.50;//El monto o valor total de la transacción a realizar. No puede ser mayor a la transacción Capturada
+      $description='Nueva Orden 524';//MaxLength:150 ;Es la descripción o el motivo de la transacción en proceso
+      $concepto='Pago en Tiendas decobre.com';
+      $codoper = 'STS-LU1ZGW16QA';
+      $name='alam';//String MaxLength:25 Nombre del tarjeta habiente
+      $lastname='brito';//String MaxLength:25 Apellido del Tarjeta habiente
+      $email='alambrito@correo.com';//String MaxLength:100 Email del
+      $address='testing new address';//String MaxLength:100 Dirección del Tarjeta
+      $phone='60201236';//Numeric MaxLength:16 Teléfono del Tarjeta habiente
+      $data = array(
+        "cclw" =>  $cclw,
+        "amount" => $amount,
+        "taxAmount" => 1.00,
+        "email" => $email,
+        "phone" => $phone,
+        "address" => $address,
+        "concept" => $concepto,
+        "description" => $description,
+        "codOper" => $codoper,
+        "lang" => 'ES',
+      );
+
+      $json=json_encode($data);
+
+      $ch = curl_init();
+      curl_setopt($ch,CURLOPT_URL, $urlConfig);
+      curl_setopt($ch, CURLOPT_POST, true);
+      curl_setopt($ch,CURLOPT_RETURNTRANSFER,true);
+      curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/json','authorization:WT5hTaUcpa4J3h4AmrZa2EXXJs8boUVa|DIRd852djHbq2j5Fca5VDUkDbExTBCVf'));
+      curl_setopt($ch,CURLOPT_POSTFIELDS,$json);
+
+      $result = curl_exec($ch);
+
+      echo "<br>";
+      echo "Respuesta de paguelo Facil";
+      echo "<br>";
+
+      $result = json_decode($result, true);*/
+
+      // Payment completed
+      $renewal_order->add_order_note( __( 'PagueloFacil payment completed, Transaction ID: renewal order', 'woocommerce' ), $result['CODOPER'] );
+      //update_post_meta( $order_id, '_paguelofacil_status', $result['Status'] );
+      //update_post_meta( $order_id, '_transaction_id', $result['CODOPER'] );
+      $renewal_order->add_order_note(__('PagueloFacil payment completed renewal order', 'woocommerce'));
+      $renewal_order->payment_complete();
+
+      //return new WP_Error( 'stripe_error', __( 'There was a problem connecting to the Stripe API endpoint.', 'woocommerce-gateway-stripe' ) );
+
+      return null;
+    }
+
+    /**
      * Add the gateway to woocommerce
      * */
     function add_paguelofacil_gateway($methods) {
@@ -517,5 +607,10 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
     }
 
     add_filter('woocommerce_payment_gateways', 'add_paguelofacil_gateway');
+
+    // Hook the schedule event for the next payments.
+    if ( class_exists( 'WC_Subscriptions_Order' ) ) {
+			add_action( 'woocommerce_scheduled_subscription_payment_paguelofacil', 'scheduled_subscription_payment', 10, 2 );
+		}
   }
 }
